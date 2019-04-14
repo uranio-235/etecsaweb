@@ -1,0 +1,32 @@
+#¹ En el ejemplo, se monta el directorio /opt/etecsa/ como volumen
+#  al contenedor en la ruta «/app/db». Se esper que /opt/etecsa/ contenga
+#  un fichero llamado «etecsa.db» (minúsculas!) con la infame base de datos
+#  que todos los cubanos conocemos
+
+#² La variable de entorno VIRTUAL_HOST es usada por «jwilder/nginx-proxy»
+#  para generar el proxy inverso. Se asume que la app de etecsa NO será
+#  la única app que correras en este entorno. Verdad?
+
+version: '3.7'
+services:
+
+  # el proxy inverso frontal
+  nginx-proxy:
+    restart: always
+    image: jwilder/nginx-proxy:alpine
+    ports:
+      - "80:80" 
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  # la aplicación de etecsa
+  etecsa:
+    restart: always
+    image: etecsaweb:latest
+    volumes:
+       - ./opt/etecsa/:/app/db/:ro #¹ <-- en el HOST /opt/etecsa/etecsa.db
+    environment:
+      #ASPNETCORE_ENVIRONMENT: Development
+      VIRTUAL_HOST: etecsa.tudominio.cu #² <-- ¿usas jwilder/nginx-proxy? ...pues deberías
+    expose: 
+      - "80"

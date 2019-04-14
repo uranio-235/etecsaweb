@@ -1,0 +1,127 @@
+﻿@page
+@model IndexModel
+
+<br />
+<br />
+<br />
+
+<div class="container">
+
+
+    <div class="row justify-content-center">
+        <div class="col-4 mx-auto">
+
+            @*Cada vez se levanta la tecla, le hace una petición al ajax para que busque el número.
+            Este input tiene el historial deshabilitado.*@
+            <div class="form-group">
+                <input onkeyup="inputSearchKeyup()" autocomplete="off" type="text" class="shadow-md form-control"
+                    id="inputSearch" name="inputSearch" placeholder="teléfono, carnet o nombre">
+            </div>
+
+        </div>
+
+    </div>
+
+
+    @* muestra un spinner mientras se hace una operacion *@
+    <div class="d-flex justify-content-center">
+        <p id="estado" />
+    </div>
+
+
+    @* la vista donde se muestra la tarjeta *@
+    <div class="row justify-content-center">
+
+        <br />
+
+        @* el contenedor que tiene el panel oculto
+        se usa para mostrar UN resultado la buscar por un número *@
+        <div class="collapse" id="contenedorPanel">
+
+            <div id="presentarDatos" class="card">
+
+                @* el título *@
+                <div class="card-header"><h5>Registro Telefónico</h5></div>
+
+                @* el javascript pones los <li> y sobreescribe estos *@
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">Cras justo odio</li>
+                    <li class="list-group-item">Dapibus ac facilisis in</li>
+                    <li class="list-group-item">Vestibulum at eros</li>
+                </ul>
+
+            </div>
+
+        </div>
+
+
+        @* el contenedor que tiene la tabla oculta
+        se usa para mostrar múltiples resultados al buscar por nombre *@
+        <div class="collapse" id="contenedorTabla">
+
+            <table id="latabla" class="table table-hover table-borderless display">
+
+                <thead>
+                    <tr>
+                        <th scope="col">Número</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Dirección</th>
+                    </tr>
+                </thead>
+
+                <tbody id="cuerpoTabla">
+                    <tr>
+                        <td id="tabla-number"></td>
+                        <td id="tabla-name"></td>
+                        <td id="tabla-address"></td>
+                    </tr>
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+@* este modal muestra los detalles de un registro al hacer click *@
+<div class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                @* el título *@
+                <h5 id="modalTitulo" class="modal-title">Registro Telefónico</h5>
+
+                @* el botón cerrar del modal *@
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                @* un card para mostrar los detalles del tipo *@
+                <div class="card">
+                    <ul id="modalDetalles" class="list-group list-group-flush">
+                        <li class="list-group-item"><b>Número: </b><span id="modal-number" /></li>
+                        <li class="list-group-item"><b>Nombre: </b><span id="modal-name" /></li>
+                        <li class="list-group-item"><b>Carnet: </b><span id="modal-identification" /></li>
+                        <li class="list-group-item"><b>Dirección: </b><span id="modal-address"></span></li>
+                    </ul>
+                </div>
+
+            </div>
+
+            @* el botón cerrar *@
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+
+        </div>
+    </div>
+</div>

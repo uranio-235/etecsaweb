@@ -1,0 +1,38 @@
+﻿@page
+@model AboutModel
+
+<div class="container">
+
+    <div class="align-center">
+
+        <br />
+
+        <h3>EtecsaWeb</h3>
+
+        <br />
+
+        <p>EtecsaWeb es una aplicación para consultar la infame base de datos de etecsa.</p>
+
+        <p>Una constribución de ChipojoSoft, para el departamento de informática del hospital Calixto García</p>
+
+        <p>Versión de la aplicación @Model.VersionAplicacion</p>
+
+        <p>Ruta del fichero cargado @Model.RutaAlFichero</p>
+
+        <p id="versionp">cargando versión de la base de datos...</p>
+
+        <p id="staticsp">cargando información estadística detallada...</p>
+
+    </div>
+
+</div>
+
+<script type="text/javascript">
+
+    // el ajax que coge la versión
+    $.get('/api/ready', data => {$('#versionp').text(`versión de la base de datos ${data.status}`)})
+
+    // el ajax que coge la cantidad de números
+    $.get('/api/statics', data => {$('#staticsp').text(`${data.moviles} teléfonos móviles y ${data.fijos} fijos`)})
+
+</script>
