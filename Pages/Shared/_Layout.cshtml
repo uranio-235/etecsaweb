@@ -7,15 +7,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Etecsa @DateTime.Now.Year.ToString()</title>
 
-    @* carga las css *@
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-grid.min.css" />
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-reboot.min.css" />
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-theme.min.css" />
-    <link rel="stylesheet" type="text/css" href="~/css/datatables.min.css"/>
-    
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
- 
+    @* carga todo el bootstrap *@
+
+    @* carga las css de aquí *@
+    <environment include="Development">
+
+        <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-grid.min.css" />
+        <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-reboot.min.css" />
+        <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap-theme.min.css" />
+
+        <link rel="stylesheet" type="text/css" href="~/css/datatables.min.css"/>
+
+        <link rel="stylesheet" type="text/css" asp-append-version="true" href="~/css/site.css"/>
+
+    </environment>
+
+    @* en producción carga la css minificada *@
+    <environment exclude="Development">
+        <link rel="stylesheet" type="text/css" href="~/css/main.min.css"/>
+    </environment>
+
 
 </head>
 
@@ -39,18 +51,26 @@
 
 
     @* carga los js *@
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="text/javascript" src="~/js/datatables.min.js"></script>
+    <environment include="Development">
 
-    <script src="~/js/site.js" asp-append-version="true"></script>
+        <script src="~/lib/jquery/dist/jquery.min.js"></script>
+        <script src="~/lib/bootstrap/dist/js/bootstrap.min.js"></script>
+        <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+        <script type="text/javascript" src="~/js/datatables.min.js"></script>
+
+        <script src="~/js/site.js" asp-append-version="true"></script>
+
+    </environment>
+
+    @* en producción, carga los minificados*@
+    <environment exclude="Development">
+        <script type="text/javascript" src="~/js/main.min.js" asp-append-version="true"/></script>
+    </environment>
 
 
     <div class="container body-content">
         @RenderBody()
     </div>
-
 
     @RenderSection("Scripts", required: false)
 

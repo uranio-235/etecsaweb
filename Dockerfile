@@ -16,6 +16,9 @@ WORKDIR /app
 
 # copia el csproj para aquí y restaura en un layer aparte
 COPY *.csproj ./
+
+# efectua la restauración
+# RUN dotnet restore -v n -s http://192.168.114.132:8081/repository/nuget.org-proxy/
 RUN dotnet restore -v n
 
 # copia la aplicación y compílala
