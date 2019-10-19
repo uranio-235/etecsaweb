@@ -1,24 +1,24 @@
-﻿// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
+// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
 // for details on configuring this project to bundle and minify static web assets.
 
 // Write your Javascript code.
 
 
+/* TODO
+
+ - una colección para almacenar la búsquedas realizadas
+   si ya hubo una búsqueda, entonces sacamos sus valores
+
+*/
+
 // al cargar
 $(document).ready(() => {
 
-    // semáforo que indica si faltan datos por cargar
-    document.cargando = false;
-
-    // aquí meteremos los números de los móviles que ya bajaron
-    // FIXME poco eficiente, consume mucha ram... bueeeeeno
-    document.TelefonosEnTabla = [];
-
-    // cada consulta que se realiza la cachamos aquí para no repetirla
-    document.TelefonosConsultados = [];
+    // si no hay indexDB, ni sigas
+    if (!window.indexedDB) errorTotal('su navegador no soporta indexDB, así de viejo debe ser')
 
     // si la api no está lista, deshabilita todo
-    // el error puede ser desconocido o conocico
+    // el error puede ser desconocido o conocido
     // la api informa los errores conocidos en {status: "descripción del error"}
     $.ajax({
         url: '/api/ready',
@@ -26,20 +26,29 @@ $(document).ready(() => {
         error: () => { errorTotal('se desconoce la causa, vea la salida de docker') }
     });
 
+    // abre la base de datos
+    document.db = new Dexie('etecsa');
+
+    // crea la tabla móviles e indísala por number
+    document.db.version(1).stores({ movil: 'number, name' });
+
+    // crea la tabla search (búsquedas realizadas) e indísala por clave
+    document.db.version(1).stores({ search: 'clave' });
+
     // arranca datables y ponlo en español
     $("#latabla").DataTable({
         language: {
             "decimal": "",
             "emptyTable": "No hay información",
             "info": "Mostrando _START_ a _END_ de _TOTAL_ Entradas",
-            "infoEmpty": "Mostrando 0 to 0 of 0 Entradas",
+            "infoEmpty": "sin resultados para mostrar",
             "infoFiltered": "(Filtrado de _MAX_ total entradas)",
             "infoPostFix": "",
-            "thousands": ",",
+            "thousands": "'",
             "lengthMenu": "Mostrar _MENU_ Entradas",
             "loadingRecords": "Cargando...",
             "processing": "Procesando...",
-            "search": "Filtrar estos resultados",
+            "search": "filtrar resultados",
             "zeroRecords": "Sin resultados encontrados",
             "paginate": {
                 "first": "Primero",
@@ -51,7 +60,7 @@ $(document).ready(() => {
         order: [[1, "asc"]]
     });
 
-    // ponle form-control al input de datatables
+    // el filtro de datos
     $('#latabla_filter input').addClass('shadow-md form-control');
 
 }) // document ready
@@ -71,6 +80,10 @@ function errorTotal(cual) {
     $("#estado").html(`<p>Error conectando la base datos</p><p>${cual}</p>`)
 
 }  // errorTotal
+
+
+// indica un estado en la «barra de estado»
+function estado(que) { $("#estado").text(que) };
 
 
 // función que se lanza cada vez que el usuario levanta el dedo de la tecla en el input
@@ -99,23 +112,14 @@ function inputSearchKeyup() {
         .replace('ü', 'u')
         .split('').filter(c => {
             if ('abcdefghijklmnopqrstuvwxyz'.split('').includes(c)) return c
-            if (c==' ') return c
+            if (c == ' ') return c
             if (!isNaN(parseInt(c))) return c
         }).join('') // que
     );
 
-    // retoma nuevo resultado, ya modificado por la limpieza anterior
-    var limpio = $('#inputSearch').val();
-
-    // si la consulta ya está hecho, termina aquí
-    if (document.TelefonosConsultados.includes(limpio)) return
-
-    // cachéa esta consulta
-    document.TelefonosConsultados.push(limpio)
-
-    // verifica si el primer caracter es una letra o un número
+    // verifica si el primer carácter es una letra o un número
     // en tales casos llama a sus respectivas funciones
-    if (isNaN(parseInt(limpio[0])))
+    if (isNaN(parseInt($('#inputSearch').val()[0])))
         buscarLetras()
     else
         buscarNumero()
@@ -123,107 +127,138 @@ function inputSearchKeyup() {
 } // inputOnKeyUp
 
 
-
 // llama al ajax que busca en la base de datos por nombre
-function buscarLetras() {
+async function buscarLetras() {
 
-    // toma lo que está escrito en el input, quítale los números y ponlo minúscula
-    var clave = $("#inputSearch").val().split('').map(c => { if (isNaN(parseInt(c))) { return c.toLowerCase() } }).join('')
+    // toma solamente letras
+    let cadena = $("#inputSearch").val().split('').map(c => { if (isNaN(parseInt(c))) { return c.toLowerCase() } }).join('')
 
     // mételo de regreso al input
-    $("#inputSearch").val(clave);
+    $("#inputSearch").val(cadena);
 
     // si no tiene espacio, ni sigas, solo buscamos «nombre apellido»
-    if (clave.indexOf(' ') < 0) return;
+    if (!cadena.includes(' ')) return;
 
     //el nombre y apellido deben tener una longitud decente antes de matarnos buscándolo
-    if (clave.split(' ')[0].length < 3) return;
-    if (clave.split(' ')[1].length < 3) return;
+    if (cadena.split(' ')[0].length < 3) return;
+    if (cadena.split(' ')[1].length < 3) return;
+
+    // si lo que está buscando ya se ha buscado, ni sigas, seguro está en caché
+    if ( await document.db.search.filter(f => f.clave == cadena).count() > 0 ) {
+
+        // recarga la tabla
+        recargarTabla(cadena);
+
+        // terminó
+        estado("operación completada");
+
+        // y termina
+        return;
+    }
+    else // si es nuevo, cachéalo
+    {
+        // añádelo a la tabla de resultados buscados
+        document.db.search.add({ clave: cadena });
+
+    } // if 
+
+    // indícame que estoy buscando en la caché
+    estado(`buscando «${cadena}» en caché`);
+
+    // quizás ya el indexedDB tiene algo parecido a lo que se busca
+    recargarTabla(cadena);
 
     // expresa el cambio de estado, antes de ejecutar el ajax
-    $("#estado").text(`buscar «${clave}» como móvil`);
+    $("#estado").text(`buscando «${cadena}» como móvil...`);
 
     // consulta anidada, primero móvil, luego fijo
-    $.get(`/api/movil/${clave}`, moviles => {
+    $.get(`/api/movil/${cadena}`, moviles => {
 
-        // mételo en la tabla
-        ponerEnTabla(moviles)
+        // mete los móviles en el indexeddb y recarga la tabla
+        recargarTabla(cadena, moviles);
 
         // ahora vamos a buscar fijos
-        $("#estado").text(`buscar «${clave}» como fijo`);
+        $("#estado").text(`buscando «${cadena}» como fijo`);
 
         // cuando el ajax de los móviles halla terminado, mándalo a buscar fijos
-        $.get(`/api/fijo/${clave}`, fijos => ponerEnTabla(fijos) )
+        $.get(`/api/fijo/${cadena}`, fijos => {
+
+            // los fijos pal saco y pa la tabla
+            recargarTabla(cadena, fijos);
+
+            // si lo que se buscó es igual a lo que está
+            // en el input entonces ya terminó la operación
+            if (cadena == $("#inputSearch").val())
+                estado('operación completada')
+
+        }) // $.get
 
     }) // $.get
 
 } // buscarLetras
 
 
+// efectua la consulta en localstorage y refresca la tabla colocando los resultados
+// si recibe el argumento «moviles» entonces lo añade al localstorage
+function recargarTabla(clave, moviles) {
 
-// mete los números dados en la tabla y la muestra
-function ponerEnTabla(moviles) {
+    // cache los móviles dados en el indexedDB, si te dieron
+    if (moviles && moviles.length > 0)
+        moviles.forEach(m => document.db.movil.add(m));
 
-    // se espera que halla al menos un resultado
-    if (!moviles || moviles.length == 0) return;
+    // espera por los datos en los móviles
+    document.db.movil.orderBy('name')
 
-    // oculta el panel (si es que está visible)
-    $("#contenedorPanel").fadeOut();
+        // buscamos en la colección de móviles, NO la clave, si no
+        // lo que está escrito en el input, pues la clave varía según
+        // se procesan las peticiones del ajax, Lo que está en el input,
+        // siempre será lo que el usuario quiere, sin importar lo que
+        // esté saliendo por el suesivo ajax
+        .filter(f => f.name
+            .includes(
+                $("#inputSearch")
+                    .val()
+                    .toUpperCase()
+            )
+        ).toArray()
 
-    // méte todos lo móviles de uno en fondo pa la tabla
-    moviles.forEach(movil => {
+        // cuando hallan cargado los móviles
+        .then(moviles => {
 
-        // verifica si el número no está ya en la tabla
-        if (document.TelefonosEnTabla.includes(movil.number)) {
+            // recarga los datos en la tabla
+            $("#latabla").DataTable()
+                .clear()
+                .rows.add(moviles.map(m => ([m.number, m.name, m.address])))
+                .draw()
 
-            // si ya está en la tabla, terminamos aquí
-            return
-        }
-        else // si no está puesto en la tabla
-        {
-            // márcalo como bajado
-            document.TelefonosEnTabla.push(movil.number);
-        }
+            // oculta el panel y muestra la tabla
+            if ($("#latabla").DataTable().rows().count() > 0) {
+                $("#contenedorPanel").fadeOut();
+                $("#contenedorTabla").fadeIn();
+            }
 
-        // toma la tabla como objeto de datatable
-        var tabla = $("#latabla").DataTable();
+        }) // then
 
-        // añade la fila a la tabla
-        // sucesivamente, el número, el nombre y la dirección
-        tabla.row.add([movil.number, movil.name, movil.address]).draw()
+    // pon el evento click en cada fila para mostrar el modal con los detalles
+    $('#latabla tbody').on('click', 'tr', function () {
 
-        // muestra la tabla
-        $("#contenedorTabla").fadeIn();
+        // invoca la función "showDetail" para es número de teléfono en la fila
+        mostrarModal($("#latabla").DataTable().row(this).data()[0]);
 
-        // pon el evento click en cada fila
-        $('#latabla tbody').on('click', 'tr', function () {
+    }); // latabla
 
-            // toma el número de teléfono que tiene la fila
-            var numero = tabla.row(this).data()[0];
+} // name
 
-            // invoca la función "showDetail"
-            showDetail(numero);
-
-        }); // latabla
-
-    }); // forEach
-
-    // pon la primera palabra en el filtro
-    $('#latabla_filter input').val($('#inputSearch').val());
-
-    // y dime que ya terminó
-    $("#estado").text(`operación completada, ${document.TelefonosEnTabla.length+1} resultados`);
-
-} // ponerEnTabla
 
 
 
 // la función que se ocupa de llenar el modal y mostrarlo
 // esto sucede cuando el usuario hace click en una fila de la tabla
-function showDetail(numero) {
+function mostrarModal(numero) {
 
-    // añade los <li> al <ul> que muestra los detalls
-    $.get(`/api/query/${numero}`, movil => {
+    // localiza en la caché el número clicado y añade
+    // esos datos a  los < li > al < ul > que muestra los detalles
+    document.db.movil.get(numero).then(movil => {
 
         (["number", "name", "identification", "address"])
             .forEach(que => { $(`#modal-${que}`).text(movil[que]) })
@@ -237,7 +272,8 @@ function showDetail(numero) {
 
 
 
-
+// TODO unificar esta función con la otra
+// FIXME llevar al sistema de caché
 // función que hace la petición ajax para buscar por número
 function buscarNumero() {
 
@@ -245,13 +281,13 @@ function buscarNumero() {
     $("#inputSearch").val($("#inputSearch").val().split('').map(c => isNaN(parseInt(c)) ? '' : c).join(''))
 
     // lo que el usuario escribió en el input
-    var clave = $("#inputSearch").val();
+    let numero = $("#inputSearch").val();
 
     //manda a buscar el número
     $.ajax({
 
         // pregúntale a la api por el número buscado
-        url: `/api/query/${clave}`,
+        url: `/api/query/${numero}`,
 
         // si aparece
         success: movil => {
@@ -259,15 +295,39 @@ function buscarNumero() {
             // si apareció un número
             if (movil) {
 
-                // ponlo en la tarjetica
-                ponerEnPresentacion(movil);
+                // dáselo a la caché
+                document.db.movil.add(movil);
+
+                // oculta la tabla (si es que está mostrada)
+                $("#contenedorTabla").fadeOut();
+
+                // esto será lo que pondremos en la card
+                let dato = {
+                    "Número": movil.number,
+                    "Nombre": movil.name,
+                    "Carnet": movil.identification,
+                    "Dirección": movil.address
+                }
+
+                // los fijos llevan provincia
+                if (!movil.provincia.includes('('))
+                    dato['Provincia'] = movil.provincia
+
+                // mételo en el UL, usa las {claves: valor} de «dato» para formar el texto
+                $("#presentarDatos ul").html(Object.keys(dato).map(k => `<li class="list-group-item"><b>${k}:</b> ${dato[k]}</li>`).join(''))
+
+                // cambia el estado
+                $("#estado").text("escriba otro teléfono o carnet")
+
+                // muestra la tarjetica
+                $("#contenedorPanel").fadeIn();
 
             }
             else // si no devolvió algo
             {
-                // dícelo
-                if (clave.length > 6)
-                    $("#estado").text(`el número «${clave}» no está registrado aquí 🙄`);
+                // y lo que buscó parece un número decente
+                if (numero.length > 6)
+                    $("#estado").text(`el número «${numero}» no está registrado aquí 🙄`);
 
             } // if
 
@@ -276,30 +336,3 @@ function buscarNumero() {
     }) // ajax
 
 } // buscarNumero
-
-
-
-// coloca un único número en un panelito de presentación
-function ponerEnPresentacion(movil) {
-
-    // oculta la tabla (si es que está mostrada)
-    $("#contenedorTabla").fadeOut();
-
-    // esto será lo que pondremos en la card
-    var dato = {
-        "Numero": movil.number,
-        "Nombre": movil.name,
-        "Carnet": movil.identification,
-        "Dirección": movil.address
-    }
-
-    // mételo en el UL, usa las {claves: valor} de «dato» para formar el texto
-    $("#presentarDatos ul").html(Object.keys(dato).map(k => `<li class="list-group-item"><b>${k}:</b> ${dato[k]}</li>`).join(''))
-
-    // cambia el estado
-    $("#estado").text("escriba otro teléfono o carnet")
-
-    // muestra la tarjetica
-    $("#contenedorPanel").fadeIn();
-
-} // ponerEnPresentacion

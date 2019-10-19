@@ -1,12 +1,12 @@
+# las pruebas de comandos
+test.bats
+
 *.swp
 *.*~
 project.lock.json
 .DS_Store
 *.pyc
 nupkg/
-
-# el script de subir las cosas
-subir.sh
 
 # Visual Studio Code
 .vscode
